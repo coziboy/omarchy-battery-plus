@@ -9,7 +9,10 @@ PATH=/usr/local/bin:/usr/bin:/bin
 
 # ---------- battery ----------------------------------------------------
 bat=""
-for d in /sys/class/power_supply/BAT*; do [ -d "$d" ] && bat="$d" && break; done
+for d in /sys/class/power_supply/*; do
+  [ -d "$d" ] || continue
+  [ "$(cat "$d/type" 2>/dev/null)" = "Battery" ] && bat="$d" && break
+done
 g() { cat "$bat/$1" 2>/dev/null || echo "${2:-0}"; }
 
 bat_present=false; percent=0; status=Unknown
