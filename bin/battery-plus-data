@@ -87,9 +87,23 @@ fi
 
 # ---------- CPU -------------------------------------------------------
 gov=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "?")
-epp=$(cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference 2>/dev/null || echo "?")
+epp=$(cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference 2>/dev/null)
+if [ -z "$epp" ]; then
+  # no hardware EPP (e.g. apple-cpufreq) — read back the governor fallback
+  case "$gov" in
+    powersave)   epp=power ;;
+    schedutil)   epp=balance_power ;;
+    ondemand)    epp=balance_performance ;;
+    performance) epp=performance ;;
+    *)           epp="?" ;;
+  esac
+fi
 turbo=true
-[ -r /sys/devices/system/cpu/intel_pstate/no_turbo ] && [ "$(cat /sys/devices/system/cpu/intel_pstate/no_turbo)" = 1 ] && turbo=false
+if [ -r /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
+  [ "$(cat /sys/devices/system/cpu/intel_pstate/no_turbo)" = 1 ] && turbo=false
+elif [ -r /sys/devices/system/cpu/cpufreq/boost ]; then
+  [ "$(cat /sys/devices/system/cpu/cpufreq/boost)" = 0 ] && turbo=false
+fi
 freq=$(awk '{s+=$1;n++} END{if(n)printf "%d", s/n/1000}' /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq 2>/dev/null)
 pkgtemp=""
 for z in /sys/class/thermal/thermal_zone*; do

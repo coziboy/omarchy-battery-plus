@@ -46,8 +46,16 @@ case "${1:-}" in
 
   turbo)
     want "${2:-}"
-    [ "$2" = on ] && v=0 || v=1
-    echo "$v" > /sys/devices/system/cpu/intel_pstate/no_turbo
+    if [ -e /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
+      [ "$2" = on ] && v=0 || v=1
+      echo "$v" > /sys/devices/system/cpu/intel_pstate/no_turbo
+    elif [ -e /sys/devices/system/cpu/cpufreq/boost ]; then
+      [ "$2" = on ] && v=1 || v=0
+      echo "$v" > /sys/devices/system/cpu/cpufreq/boost
+    else
+      echo "turbo control not supported on this cpu" >&2
+      exit 2
+    fi
     ;;
 
   epp)
@@ -55,9 +63,22 @@ case "${1:-}" in
       power|balance_power|balance_performance|performance) ;;
       *) echo "bad epp" >&2; exit 2 ;;
     esac
-    for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
-      echo "$2" > "$f" 2>/dev/null || true
-    done
+    if [ -e /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference ]; then
+      for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+        echo "$2" > "$f" 2>/dev/null || true
+      done
+    else
+      # no hardware EPP (e.g. apple-cpufreq) — approximate with a governor
+      case "$2" in
+        power)               gov=powersave ;;
+        balance_power)       gov=schedutil ;;
+        balance_performance) gov=ondemand ;;
+        performance)         gov=performance ;;
+      esac
+      for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+        echo "$gov" > "$f" 2>/dev/null || true
+      done
+    fi
     ;;
 
   wifi)
